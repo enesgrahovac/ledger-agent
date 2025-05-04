@@ -14,6 +14,21 @@ import {
     TableRow,
 } from "@/components/ui/table"
 
+import {
+    ColumnDef,
+    SortDirection,
+    SortingState,
+    Row,
+    flexRender,
+    getCoreRowModel,
+    getSortedRowModel,
+    useReactTable,
+} from "@tanstack/react-table";
+import { TableVirtuoso } from "react-virtuoso";
+import { HTMLAttributes, forwardRef, useState } from "react";
+import { cn } from "@/lib/utils";
+
+
 // Define props interface
 interface TransactionProps {
     transactions: any[];
@@ -28,6 +43,57 @@ interface TransactionProps {
     allCategories: string[];
 }
 
+// Table component without the wrapping div
+const TableComponent = forwardRef<
+    HTMLTableElement,
+    React.HTMLAttributes<HTMLTableElement>
+>(({ className, ...props }, ref) => (
+    <table
+        ref={ref}
+        className={cn("w-full caption-bottom text-sm", className)}
+        {...props}
+    />
+));
+TableComponent.displayName = "TableComponent";
+
+// Row renderer function
+const TableRowComponent = <TData,>(rows: Row<TData>[]) =>
+    function getTableRow(props: HTMLAttributes<HTMLTableRowElement>) {
+        // @ts-expect-error data-index is a valid attribute
+        const index = props["data-index"];
+        const row = rows[index];
+
+        if (!row) return null;
+
+        return (
+            <TableRow
+                key={row.id}
+                data-state={row.getIsSelected() && "selected"}
+                {...props}
+            >
+                {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
+                ))}
+            </TableRow>
+        );
+    };
+
+function SortingIndicator({ isSorted }: { isSorted: SortDirection | false }) {
+    if (!isSorted) return null;
+    return (
+        <div>
+            {
+                {
+                    asc: "↑",
+                    desc: "↓",
+                }[isSorted]
+            }
+        </div>
+    );
+}
+
 export function Transactions({
     transactions,
     filteredTransactions,
@@ -40,6 +106,49 @@ export function Transactions({
     removeIgnoredCategory,
     allCategories,
 }: TransactionProps) {
+    // Column definitions for the table
+    const columns: ColumnDef<any>[] = [
+        {
+            accessorKey: "originalDate",
+            header: "Date",
+            size: 100, // Set explicit width in pixels
+        },
+        {
+            accessorKey: "name",
+            header: "Name",
+            size: 300, // Adjust based on your needs
+            cell: ({ row }) => (
+                <div className="max-w-[280px] truncate">{row.getValue("name")}</div>
+            ),
+        },
+        {
+            accessorKey: "category",
+            header: "Category",
+            size: 180, // Adjust based on your needs
+            cell: ({ row }) => (
+                <div className="max-w-[160px] truncate">{row.getValue("category")}</div>
+            ),
+        },
+        {
+            accessorKey: "amount",
+            header: "Amount",
+            size: 100, // Adjust based on your needs
+            cell: ({ row }) => (
+                <div className="text-right">{row.getValue("amount")}</div>
+            ),
+        },
+    ];
+
+    // Create table instance here so we can use it for both row data and header
+    const table = useReactTable({
+        data: filteredTransactions,
+        columns,
+        getCoreRowModel: getCoreRowModel(),
+        // Enable column resizing (optional)
+        columnResizeMode: 'onChange',
+    });
+
+    const { rows } = table.getRowModel();
     return (
         <div className="p-6 w-full">
             <div className="max-w-[1000px] w-full mx-auto space-y-6">
@@ -108,34 +217,67 @@ export function Transactions({
                             </CardContent>
                         </Card>
 
-                        <div className="overflow-x-auto">
-                            <Table className="w-full">
-                                <TableCaption>A list of your recent transactions.</TableCaption>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Date</TableHead>
-                                        <TableHead>Name</TableHead>
-                                        <TableHead>Category</TableHead>
-                                        <TableHead className="text-right">Amount</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {filteredTransactions.map((transaction, index) => (
-                                        <TableRow key={index}>
-                                            <TableCell>{transaction.originalDate}</TableCell>
-                                            <TableCell className="max-w-[200px] truncate">{transaction.name}</TableCell>
-                                            <TableCell>{transaction.category}</TableCell>
-                                            <TableCell className="text-right">{transaction.amount}</TableCell>
+                        <div className="overflow-x-auto flex flex-col">
+                            <div className="rounded-md border overflow-hidden">
+                                <TableVirtuoso
+                                    style={{ height: "400px" }}
+                                    totalCount={rows.length}
+                                    overscan={100}
+                                    components={{
+                                        Table: TableComponent,
+                                        TableRow: TableRowComponent(rows),
+                                    }}
+                                    fixedHeaderContent={() => (
+                                        <TableRow className="bg-card hover:bg-muted">
+                                            {table.getHeaderGroups().map(headerGroup => (
+                                                headerGroup.headers.map(header => (
+                                                    <TableHead
+                                                        key={header.id}
+                                                        style={{
+                                                            width: header.getSize(),
+                                                            minWidth: header.getSize(),
+                                                            maxWidth: header.getSize()
+                                                        }}
+                                                    >
+                                                        {header.isPlaceholder ? null : (
+                                                            flexRender(
+                                                                header.column.columnDef.header,
+                                                                header.getContext()
+                                                            )
+                                                        )}
+                                                    </TableHead>
+                                                ))
+                                            ))}
                                         </TableRow>
-                                    ))}
-                                </TableBody>
-                                <TableFooter>
-                                    <TableRow>
-                                        <TableCell colSpan={3}>Total</TableCell>
-                                        <TableCell className="text-right">{filteredTotalAmount}</TableCell>
-                                    </TableRow>
-                                </TableFooter>
-                            </Table>
+                                    )}
+                                />
+
+                                {/* Footer integrated within the same container */}
+                                <Table className="w-full border-t">
+                                    <TableFooter>
+                                        <TableRow>
+                                            <TableCell
+                                                colSpan={3}
+                                                style={{
+                                                    width: columns.slice(0, 3).reduce((acc, col) => acc + (col.size || 0), 0),
+                                                }}
+                                            >
+                                                Total
+                                            </TableCell>
+                                            <TableCell
+                                                className="text-right"
+                                                style={{
+                                                    width: columns[3].size,
+                                                    minWidth: columns[3].size,
+                                                    maxWidth: columns[3].size,
+                                                }}
+                                            >
+                                                {filteredTotalAmount}
+                                            </TableCell>
+                                        </TableRow>
+                                    </TableFooter>
+                                </Table>
+                            </div>
                         </div>
                     </>
                 )}
