@@ -222,7 +222,7 @@ export function Transactions({
                                 <TableVirtuoso
                                     style={{ height: "400px" }}
                                     totalCount={rows.length}
-                                    overscan={1}
+                                    overscan={10}
                                     components={{
                                         Table: TableComponent,
                                         TableRow: TableRowComponent(rows),
