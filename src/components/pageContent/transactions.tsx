@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { X } from "lucide-react"
 import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
 import {
     Table,
     TableBody,
@@ -38,7 +39,7 @@ interface TransactionProps {
     ignoredCategories: string[];
     newCategory: string;
     setNewCategory: (value: string) => void;
-    addIgnoredCategory: () => void;
+    addIgnoredCategory: (category?: string) => void;
     removeIgnoredCategory: (category: string) => void;
     allCategories: string[];
 }
@@ -111,94 +112,155 @@ export function Transactions({
         {
             accessorKey: "originalDate",
             header: "Date",
-            size: 100, // Set explicit width in pixels
+            size: 100,
+            cell: ({ row }) => (
+                <div className="font-medium">{row.getValue("originalDate")}</div>
+            ),
         },
         {
             accessorKey: "name",
             header: "Name",
-            size: 300, // Adjust based on your needs
+            size: 300,
             cell: ({ row }) => (
-                <div className="max-w-[280px] truncate">{row.getValue("name")}</div>
+                <div className="max-w-[280px] truncate font-medium">{row.getValue("name")}</div>
             ),
         },
         {
             accessorKey: "category",
             header: "Category",
-            size: 180, // Adjust based on your needs
-            cell: ({ row }) => (
-                <div className="max-w-[160px] truncate">{row.getValue("category")}</div>
-            ),
+            size: 180,
+            cell: ({ row }) => {
+                const category = row.getValue("category") as string;
+                return (
+                    <Badge variant="outline" className="bg-slate-50">
+                        {category || "Uncategorized"}
+                    </Badge>
+                );
+            },
         },
         {
             accessorKey: "amount",
             header: "Amount",
-            size: 100, // Adjust based on your needs
-            cell: ({ row }) => (
-                <div className="text-right">{row.getValue("amount")}</div>
-            ),
+            size: 100,
+            cell: ({ row }) => {
+                const amount = row.getValue("amount") as string;
+                const value = parseFloat(amount.replace('$', '').replace(',', ''));
+                return (
+                    <div className={`text-right font-medium ${value < 0 ? 'text-red-500' : value > 0 ? 'text-green-500' : ''}`}>
+                        {amount}
+                    </div>
+                );
+            },
         },
     ];
 
-    // Create table instance here so we can use it for both row data and header
+    // Create table instance
     const table = useReactTable({
         data: filteredTransactions,
         columns,
         getCoreRowModel: getCoreRowModel(),
-        // Enable column resizing (optional)
         columnResizeMode: 'onChange',
     });
 
     const { rows } = table.getRowModel();
     return (
-        <div className="p-6 w-full">
-            <div className="max-w-[1000px] w-full mx-auto space-y-6">
-                {transactions.length > 0 && (
-                    <>
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Categories to Ignore</CardTitle>
-                                <CardDescription>
-                                    Select categories to exclude from analysis and view
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="space-y-4">
-                                    <div className="flex flex-wrap gap-2">
-                                        {ignoredCategories.map(category => (
-                                            <Badge key={category} variant="outline" className="flex items-center gap-1">
-                                                {category}
-                                                <button
-                                                    onClick={() => removeIgnoredCategory(category)}
-                                                    className="ml-1 rounded-full hover:bg-gray-200 p-0.5"
-                                                >
-                                                    <X size={14} />
-                                                </button>
-                                            </Badge>
-                                        ))}
-                                        {ignoredCategories.length === 0 && (
-                                            <p className="text-sm text-muted-foreground">No categories ignored</p>
-                                        )}
-                                    </div>
+        <div className="space-y-6">
+            {/* Stats summary */}
+            {transactions.length > 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <Card className="shadow-sm">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-medium text-muted-foreground">Total Transactions</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold">{transactions.length}</div>
+                        </CardContent>
+                    </Card>
+                    <Card className="shadow-sm">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-medium text-muted-foreground">Filtered Transactions</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold">{filteredTransactions.length}</div>
+                            {ignoredCategories.length > 0 && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                    Hiding {transactions.length - filteredTransactions.length} transactions
+                                </p>
+                            )}
+                        </CardContent>
+                    </Card>
+                    <Card className="shadow-sm">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-medium text-muted-foreground">Total Amount</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold">{totalAmount}</div>
+                        </CardContent>
+                    </Card>
+                    <Card className="shadow-sm">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-medium text-muted-foreground">Filtered Amount</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className={`text-2xl font-bold ${parseFloat(filteredTotalAmount.replace('$', '')) < 0 ? 'text-red-500' : parseFloat(filteredTotalAmount.replace('$', '')) > 0 ? 'text-green-500' : ''}`}>
+                                {filteredTotalAmount}
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            )}
 
-                                    <div>
+            {transactions.length > 0 && (
+                <>
+                    <Card className="shadow-sm">
+                        <CardHeader>
+                            <CardTitle>Categories to Ignore</CardTitle>
+                            <CardDescription>
+                                Select categories to exclude from analysis and view
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-4">
+                                <div className="flex flex-wrap gap-2">
+                                    {ignoredCategories.map(category => (
+                                        <Badge key={category} variant="secondary" className="flex items-center gap-1 px-3 py-1.5">
+                                            {category}
+                                            <button
+                                                onClick={() => removeIgnoredCategory(category)}
+                                                className="ml-1 rounded-full hover:bg-slate-200 p-1 transition-colors"
+                                                aria-label={`Remove ${category}`}
+                                            >
+                                                <X size={12} />
+                                            </button>
+                                        </Badge>
+                                    ))}
+                                    {ignoredCategories.length === 0 && (
+                                        <p className="text-sm text-muted-foreground">No categories ignored</p>
+                                    )}
+                                </div>
+
+                                <div className="flex gap-2">
+                                    <div className="relative flex-1">
                                         <Input
                                             list="categories"
                                             placeholder="Add category to ignore..."
                                             value={newCategory}
                                             onChange={e => {
-                                                setNewCategory(e.target.value);
-                                                // If the value matches a category, add it immediately
                                                 const selectedValue = e.target.value;
+                                                setNewCategory(selectedValue);
+
+                                                // If the value matches a category, add it immediately
                                                 if (allCategories.includes(selectedValue) && !ignoredCategories.includes(selectedValue)) {
-                                                    removeIgnoredCategory(selectedValue);
-                                                    setNewCategory(""); // Clear the input after adding
+                                                    addIgnoredCategory(selectedValue);
                                                 }
                                             }}
                                             onKeyDown={e => {
-                                                if (e.key === 'Enter') {
-                                                    addIgnoredCategory();
+                                                if (e.key === 'Enter' && newCategory && !ignoredCategories.includes(newCategory)) {
+                                                    addIgnoredCategory(newCategory);
+                                                    e.preventDefault();
                                                 }
                                             }}
+                                            className="w-full"
                                         />
                                         <datalist id="categories">
                                             {allCategories.map(category => (
@@ -206,82 +268,95 @@ export function Transactions({
                                             ))}
                                         </datalist>
                                     </div>
-
-                                    {ignoredCategories.length > 0 && (
-                                        <p className="text-sm text-muted-foreground">
-                                            Hiding {transactions.length - filteredTransactions.length} transactions
-                                            ({(100 - (filteredTransactions.length / transactions.length * 100)).toFixed(1)}% of total)
-                                        </p>
-                                    )}
                                 </div>
-                            </CardContent>
-                        </Card>
 
-                        <div className="overflow-x-auto flex flex-col">
-                            <div className="rounded-md border overflow-hidden">
-                                <TableVirtuoso
-                                    style={{ height: "400px" }}
-                                    totalCount={rows.length}
-                                    overscan={10}
-                                    components={{
-                                        Table: TableComponent,
-                                        TableRow: TableRowComponent(rows),
-                                    }}
-                                    fixedHeaderContent={() => (
-                                        <TableRow className="bg-card hover:bg-muted">
-                                            {table.getHeaderGroups().map(headerGroup => (
-                                                headerGroup.headers.map(header => (
-                                                    <TableHead
-                                                        key={header.id}
-                                                        style={{
-                                                            width: header.getSize(),
-                                                            minWidth: header.getSize(),
-                                                            maxWidth: header.getSize()
-                                                        }}
-                                                    >
-                                                        {header.isPlaceholder ? null : (
-                                                            flexRender(
-                                                                header.column.columnDef.header,
-                                                                header.getContext()
-                                                            )
-                                                        )}
-                                                    </TableHead>
-                                                ))
-                                            ))}
-                                        </TableRow>
-                                    )}
-                                />
-
-                                {/* Footer integrated within the same container */}
-                                <Table className="w-full border-t">
-                                    <TableFooter>
-                                        <TableRow>
-                                            <TableCell
-                                                colSpan={3}
-                                                style={{
-                                                    width: columns.slice(0, 3).reduce((acc, col) => acc + (col.size || 0), 0),
-                                                }}
-                                            >
-                                                Total
-                                            </TableCell>
-                                            <TableCell
-                                                className="text-right"
-                                                style={{
-                                                    width: columns[3].size,
-                                                    minWidth: columns[3].size,
-                                                    maxWidth: columns[3].size,
-                                                }}
-                                            >
-                                                {filteredTotalAmount}
-                                            </TableCell>
-                                        </TableRow>
-                                    </TableFooter>
-                                </Table>
+                                {ignoredCategories.length > 0 && (
+                                    <p className="text-sm text-muted-foreground">
+                                        Hiding {transactions.length - filteredTransactions.length} transactions
+                                        ({(100 - (filteredTransactions.length / transactions.length * 100)).toFixed(1)}% of total)
+                                    </p>
+                                )}
                             </div>
-                        </div>
-                    </>
-                )}
-            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="shadow-sm overflow-hidden">
+                        <CardHeader className="pb-0">
+                            <CardTitle>Transactions</CardTitle>
+                            <CardDescription>
+                                Showing {filteredTransactions.length} of {transactions.length} total transactions
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            <div className="border-t mt-4 overflow-x-auto flex flex-col">
+                                <div className="overflow-hidden">
+                                    <TableVirtuoso
+                                        style={{ height: "400px" }}
+                                        totalCount={rows.length}
+                                        overscan={10}
+                                        components={{
+                                            Table: TableComponent,
+                                            TableRow: TableRowComponent(rows),
+                                        }}
+                                        fixedHeaderContent={() => (
+                                            <TableRow className="bg-muted/50 hover:bg-muted">
+                                                {table.getHeaderGroups().map(headerGroup => (
+                                                    headerGroup.headers.map(header => (
+                                                        <TableHead
+                                                            key={header.id}
+                                                            style={{
+                                                                width: header.getSize(),
+                                                                minWidth: header.getSize(),
+                                                                maxWidth: header.getSize()
+                                                            }}
+                                                            className="font-medium text-xs uppercase tracking-wider"
+                                                        >
+                                                            {header.isPlaceholder ? null : (
+                                                                flexRender(
+                                                                    header.column.columnDef.header,
+                                                                    header.getContext()
+                                                                )
+                                                            )}
+                                                        </TableHead>
+                                                    ))
+                                                ))}
+                                            </TableRow>
+                                        )}
+                                    />
+
+                                    {/* Footer integrated within the same container */}
+                                    <Table className="w-full border-t">
+                                        <TableFooter>
+                                            <TableRow>
+                                                <TableCell
+                                                    colSpan={3}
+                                                    style={{
+                                                        width: columns.slice(0, 3).reduce((acc, col) => acc + (col.size || 0), 0),
+                                                    }}
+                                                >
+                                                    <span className="font-medium">Total</span>
+                                                </TableCell>
+                                                <TableCell
+                                                    className="text-right"
+                                                    style={{
+                                                        width: columns[3].size,
+                                                        minWidth: columns[3].size,
+                                                        maxWidth: columns[3].size,
+                                                    }}
+                                                >
+                                                    <span className={`font-bold ${parseFloat(filteredTotalAmount.replace('$', '')) < 0 ? 'text-red-500' : parseFloat(filteredTotalAmount.replace('$', '')) > 0 ? 'text-green-500' : ''}`}>
+                                                        {filteredTotalAmount}
+                                                    </span>
+                                                </TableCell>
+                                            </TableRow>
+                                        </TableFooter>
+                                    </Table>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </>
+            )}
         </div>
     )
 }
